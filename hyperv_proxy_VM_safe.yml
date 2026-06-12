@@ -100,14 +100,13 @@
       ansible.builtin.set_fact:
         controller_ip: "{{ ansible_default_ipv4.address }}"
 
-
-- name: Crear VM Debian cloud en Hyper-V
+- name: Comprobar conexión y mostrar info de Hyper-V (modo seguro)
   hosts: hyperv
   gather_facts: false
-  
+
   vars:
     ansible_connection: winrm
-    ansible_host: "{{ hyperv_host_ip }}"       # desde Semaphore
+    ansible_host: "{{ hyperv_host_ip }}"
     ansible_user: "{{ hyperv_user }}"
     ansible_password: "{{ hyperv_password }}"
     ansible_port: 5985
@@ -115,75 +114,26 @@
     ansible_winrm_server_cert_validation: ignore
 
   tasks:
-    - name: Mostrar switches disponibles
+    - name: Obtener versión de Hyper-V
       ansible.windows.win_shell: |
-        Get-VMSwitch | Select-Object Name, SwitchType | Format-Table -AutoSize
-      register: vsw
+        $os = Get-CimInstance Win32_OperatingSystem
+        "$($os.Caption) - $($os.Version)"
+      register: osinfo
       changed_when: false
 
-    - name: Mostrar switches por pantalla
+    - name: Mostrar versión de Hyper-V
       ansible.builtin.debug:
-        var: vsw.stdout_lines
+        var: osinfo.stdout_lines
 
-    - name: Crear rutas de almacenamiento en Hyper-V
-      ansible.windows.win_file:
-        path: "{{ item }}"
-        state: directory
-      loop:
-        - "{{ hypervvmpath }}"
-        - "{{ hypervvmpath }}\\{{ hypervvmname }}"
-
-    - name: Comprobar si el VHDX ya existe
-      ansible.windows.win_stat:
-        path: "{{ hypervvhdxpath }}"
-      register: remote_vhdx
-
-    - name: Descargar VHDX base al Hyper-V
-      ansible.windows.win_powershell:
-        script: |
-          $url  = "http://{{ hostvars['localhost']['controller_ip'] }}:{{ http_port }}/debian-cloud-base.vhdx"
-          $dest = "{{ hypervvhdxpath }}"
-          $wc   = New-Object System.Net.WebClient
-          $wc.DownloadFile($url, $dest)
-      when: not remote_vhdx.stat.exists
-
-    - name: Descargar ISO cidata al Hyper-V
-      ansible.windows.win_powershell:
-        script: |
-          $url  = "http://{{ hostvars['localhost']['controller_ip'] }}:{{ http_port }}/cidata.iso"
-          $dest = "{{ hypervvmpath }}\{{ hypervvmname }}.iso"
-          $wc   = New-Object System.Net.WebClient
-          $wc.DownloadFile($url, $dest)
-
-
-    - name: Comprobar si la VM ya existe
+    - name: Listar VMs existentes
       ansible.windows.win_shell: |
-        $vm = Get-VM -Name "{{ hypervvmname }}" -ErrorAction SilentlyContinue
-        if ($vm) { "exists" } else { "notfound" }
-      register: vmcheck
+        Get-VM | Select-Object Name, State | Format-Table -AutoSize
+      register: vmlist
       changed_when: false
 
-    - name: Crear VM Generation 1
-      ansible.windows.win_shell: |
-        New-VM -Name "{{ hypervvmname }}" -Path "{{ hypervvmpath }}" -Generation 1 -MemoryStartupBytes {{ hypervvmrammb }}MB -SwitchName "{{ hypervvswitch }}"
-        Set-VMProcessor "{{ hypervvmname }}" -Count {{ hypervvmcpu }}
-        Set-VMMemory "{{ hypervvmname }}" -DynamicMemoryEnabled $false
-      when: "'notfound' in vmcheck.stdout"
-
-    - name: Adjuntar disco y unidad DVD
-      ansible.windows.win_shell: |
-        $hdd = Get-VMHardDiskDrive -VMName "{{ hypervvmname }}" -ErrorAction SilentlyContinue
-        if (-not $hdd) {
-          Add-VMHardDiskDrive -VMName "{{ hypervvmname }}" -ControllerType IDE -ControllerNumber 0 -ControllerLocation 0 -Path "{{ hypervvhdxpath }}"
-        }
-        Set-VMDvdDrive -VMName "{{ hypervvmname }}" -ControllerNumber 1 -ControllerLocation 0 -Path "{{ hypervvmpath }}\{{ hypervvmname }}.iso"
-
-    - name: Arrancar la VM
-      ansible.windows.win_shell: |
-        $state = (Get-VM -Name "{{ hypervvmname }}").State
-        if ($state -ne "Running") { Start-VM -Name "{{ hypervvmname }}" }
-      changed_when: true
-
+    - name: Mostrar VMs
+      ansible.builtin.debug:
+        var: vmlist.stdout_lines
 
 - name: Cerrar HTTP temporal
   hosts: localhost
