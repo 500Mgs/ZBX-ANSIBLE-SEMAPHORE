@@ -1,0 +1,26 @@
+zabbix_version: "8.0"
+
+# Tu Zabbix Server central (ahora IP, más adelante puedes usar FQDN)
+zabbix_server_ip: "192.168.0.119:10051"
+
+# API Zabbix para registrar el proxy (para lab puedes usar Admin/zabbix)
+zabbix_api_url: "http://192.168.0.119/zabbix"
+zabbix_api_user: "Admin"
+zabbix_api_pass: <PASSWORD>
+
+zabbix_proxy_mode: "0"
+# BD SQLite del proxy
+zabbix_proxy_dbfile: "/var/lib/zabbix/zabbix_proxy.db"
+
+# Nombre del proxy (debe coincidir entre config y Zabbix)
+zabbix_proxy_hostname: "zbx-proxy"
+
+tls_enabled: true
+
+tls_proxy_identity: "proxy-psk-01"
+tls_debian_identity: "debian-psk-01"
+tls_windows_identity: "win-psk-01"
+
+tls_proxy_psk_file: "/etc/zabbix/tls/proxy.psk"
+tls_debian_psk_file: "/etc/zabbix/tls/debian.psk"
+tls_windows_psk_file: "C:\\Program Files\\Zabbix Agent 2\\win.psk"

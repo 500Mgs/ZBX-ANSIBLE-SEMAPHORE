@@ -1,0 +1,6 @@
+# ============================================================
+#  VARS ESPECÍFICAS — servidor Windows especial (Veeam, etc.)
+# ============================================================
+# Hereda windows.yml, aquí solo sobreescribes lo que difiera
+# ansible_user: OtroUsuario   ← ejemplo si el admin se llama distinto
+zabbix_proxy_ip: "PROXY_IP"   # Redundante si ya está en all.yml, pero explícito

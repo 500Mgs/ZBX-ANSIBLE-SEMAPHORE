@@ -1,0 +1,13 @@
+version: 2
+ethernets:
+  eth0:
+    dhcp4: false
+    addresses:
+      - {{ vmip }}/{{ vmprefix }}
+    routes:
+      - to: default
+        via: {{ vmgateway }}
+    nameservers:
+      addresses:
+        - {{ vmdns }}
+        - 1.1.1.1

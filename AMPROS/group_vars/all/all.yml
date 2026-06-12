@@ -1,0 +1,15 @@
+zabbix_version: "7.4"
+client_name: "AMPROS"
+
+zabbix_server_ip: "192.168.0.119"
+zabbix_proxy_ip: "192.168.2.236"
+zabbix_proxy_hostname: "zbx-proxy-AMPROS"
+zabbix_proxy_mode: "0"
+zabbix_release_deb: "https://repo.zabbix.com/zabbix/{{ zabbix_version }}/release/debian/pool/main/z/zabbix-release/zabbix-release_latest+debian12_all.deb"
+
+zabbix_proxy_dbfile: "/var/lib/zabbix/proxy.db"
+
+tls_proxy_identity: "proxy-AMPROS"
+tls_proxy_psk_file: "/etc/zabbix/tls/proxy.psk"
+tls_proxy_psk_src: "{{ inventory_dir }}/files/proxy.psk"
+http_port: 8765

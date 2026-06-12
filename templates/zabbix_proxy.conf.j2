@@ -1,0 +1,28 @@
+### Archivo generado por Ansible para Zabbix Proxy (cliente tipo)
+
+LogType=file
+LogFile=/var/log/zabbix/zabbix_proxy.log
+LogFileSize=10
+
+Server={{ zabbix_server_ip }}
+Hostname={{ zabbix_proxy_hostname }}
+
+PidFile=/run/zabbix/zabbix_proxy.pid
+
+ProxyMode={{ zabbix_proxy_mode | default('0') }}
+ProxyConfigFrequency=3600
+DataSenderFrequency=1
+ProxyOfflineBuffer=24
+ProxyLocalBuffer=0
+ProxyBufferMode=disk
+
+DBName={{ zabbix_proxy_dbfile }}
+DBUser=
+DBPassword=
+
+TLSConnect=psk
+TLSAccept=psk
+TLSPSKIdentity={{ tls_proxy_identity }}
+TLSPSKFile={{ tls_proxy_psk_file }}
+
+Include=/etc/zabbix/zabbix_proxy.d/*.conf

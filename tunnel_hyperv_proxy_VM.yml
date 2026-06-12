@@ -1,0 +1,2 @@
+- import_playbook: hyperv_proxy_VM.yml
+- import_playbook: proxy_VM_installation.yml

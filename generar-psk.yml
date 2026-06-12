@@ -1,0 +1,38 @@
+---
+- name: Generar PSK del cliente si no existe
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    psk_path: "{{ inventory_dir }}/files/proxy.psk"
+  tasks:
+    - name: Crear carpeta files del cliente si no existe
+      ansible.builtin.file:
+        path: "{{ inventory_dir }}/files"
+        state: directory
+        mode: "0700"
+
+    - name: Comprobar si ya existe el PSK
+      ansible.builtin.stat:
+        path: "{{ psk_path }}"
+      register: psk_stat
+
+    - name: Generar PSK hexadecimal aleatorio
+      ansible.builtin.shell: "openssl rand -hex 32 > '{{ psk_path }}'"
+      when: not psk_stat.stat.exists
+      changed_when: true
+
+    - name: Ajustar permisos del PSK
+      ansible.builtin.file:
+        path: "{{ psk_path }}"
+        mode: "0600"
+      when: not psk_stat.stat.exists
+
+    - name: Mostrar resultado
+      ansible.builtin.debug:
+        msg: >-
+          {% if psk_stat.stat.exists %}
+          El PSK ya existía en {{ psk_path }} y no se ha modificado.
+          {% else %}
+          PSK generado correctamente en {{ psk_path }}.
+          {% endif %}

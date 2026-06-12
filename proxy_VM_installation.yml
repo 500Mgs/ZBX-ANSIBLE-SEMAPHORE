@@ -1,0 +1,111 @@
+---
+- name: Instalar y configurar Zabbix Proxy
+  hosts: zabbixproxies
+  become: true
+  serial: 1
+
+  vars:
+    zabbix_release_deb: "https://repo.zabbix.com/zabbix/{{ zabbix_version }}/release/debian/pool/main/z/zabbix-release/zabbix-release_latest+debian12_all.deb"
+
+  tasks:
+    - name: Instalar dependencias base
+      ansible.builtin.apt:
+        name:
+          - wget
+          - gnupg
+          - sqlite3
+        state: present
+        update_cache: true
+
+    - name: Descargar paquete repo Zabbix
+      ansible.builtin.get_url:
+        url: "{{ zabbix_release_deb }}"
+        dest: /tmp/zabbix-release.deb
+        mode: "0644"
+
+    - name: Instalar repo Zabbix
+      ansible.builtin.apt:
+        deb: /tmp/zabbix-release.deb
+
+    - name: Actualizar caché APT
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Instalar Zabbix Proxy SQLite
+      ansible.builtin.apt:
+        name:
+          - zabbix-proxy-sqlite3
+          - zabbix-sql-scripts
+        state: present
+
+    - name: Crear directorio TLS
+      ansible.builtin.file:
+        path: /etc/zabbix/tls
+        state: directory
+        owner: zabbix
+        group: zabbix
+        mode: "0700"
+
+    - name: Copiar PSK del cliente
+      ansible.builtin.copy:
+        src: "{{ tls_proxy_psk_src }}"
+        dest: "{{ tls_proxy_psk_file }}"
+        owner: zabbix
+        group: zabbix
+        mode: "0600"
+
+    - name: Crear directorio de base de datos
+      ansible.builtin.file:
+        path: "{{ zabbix_proxy_dbfile | dirname }}"
+        state: directory
+        owner: zabbix
+        group: zabbix
+        mode: "0750"
+
+    - name: Inicializar base de datos SQLite si no existe
+      ansible.builtin.shell: |
+        sqlite3 "{{ zabbix_proxy_dbfile }}" < /usr/share/zabbix/sql-scripts/sqlite3/proxy.sql
+      args:
+        creates: "{{ zabbix_proxy_dbfile }}"
+
+    - name: Ajustar propietario de la base de datos
+      ansible.builtin.file:
+        path: "{{ zabbix_proxy_dbfile }}"
+        owner: zabbix
+        group: zabbix
+        mode: "0640"
+
+    - name: Renderizar zabbix_proxy.conf
+      ansible.builtin.template:
+        src: templates/zabbix_proxy.conf.j2
+        dest: /etc/zabbix/zabbix_proxy.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reiniciar zabbix-proxy
+
+    - name: Habilitar y arrancar zabbix-proxy
+      ansible.builtin.systemd:
+        name: zabbix-proxy
+        enabled: true
+        state: started
+
+    - name: Verificar servicio
+      ansible.builtin.systemd:
+        name: zabbix-proxy
+      register: proxyst
+
+    - name: Mostrar estado final
+      ansible.builtin.debug:
+        msg:
+          - "Proxy: {{ zabbix_proxy_hostname }}"
+          - "IP: {{ zabbix_proxy_ip }}"
+          - "Estado: {{ proxyst.status.ActiveState }}"
+          - "Server: {{ zabbix_server_ip }}"
+          - "PSK Identity: {{ tls_proxy_identity }}"
+
+  handlers:
+    - name: Reiniciar zabbix-proxy
+      ansible.builtin.systemd:
+        name: zabbix-proxy
+        state: restarted

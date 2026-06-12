@@ -1,0 +1,9 @@
+Server={{ zabbix_proxy_ip }}
+ServerActive={{ zabbix_proxy_ip }}
+Hostname={{ inventory_hostname }}
+
+LogType=file
+LogFile=C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.log
+LogFileSize=10
+
+Include=C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.d\\*.conf

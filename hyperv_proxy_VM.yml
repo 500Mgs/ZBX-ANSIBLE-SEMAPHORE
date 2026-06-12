@@ -1,0 +1,207 @@
+---
+- name: Preparar ISO NoCloud en el nodo Ansible
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    # Identidad de la VM/proxy AMPROS
+    hypervvmname: "zbx-proxy-AMPROS"
+    vmhostname:  "zbx-proxy-AMPROS"
+
+    # Red de la VM (las que quieres usar en network-config.conf.j2)
+    vmip: "192.168.2.236"
+    vmprefix: 24
+    vmgateway: "192.168.2.254"
+    vmdns: "8.8.8.8"
+
+    # Rutas de trabajo e infra
+    base_workdir: "/var/cache/ansible/cloud-debian-12"
+    base_vhdx: "{{ base_workdir }}/debian-cloud-base.vhdx"
+    workdir: "/tmp/{{ hypervvmname }}-build"
+    http_port: 8765
+    ansible_pubkey: "{{ lookup('file', '/home/usuario/.ssh/id_ed25519.pub') }}"
+  tasks:
+    - name: Instalar herramientas locales
+      ansible.builtin.apt:
+        name:
+          - genisoimage
+          - qemu-utils
+          - xz-utils
+        state: present
+        update_cache: true
+      become: true
+
+    - name: Crear directorio de trabajo
+      ansible.builtin.file:
+        path: "{{ workdir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Crear directorio cidata
+      ansible.builtin.file:
+        path: "{{ workdir }}/cidata"
+        state: directory
+        mode: "0755"
+
+    - name: Generar meta-data
+      ansible.builtin.copy:
+        dest: "{{ workdir }}/cidata/meta-data"
+        content: |
+          instance-id: {{ hypervvmname }}-001
+          local-hostname: {{ vmhostname }}
+
+    - name: Generar user-data desde template
+      ansible.builtin.template:
+        src: templates/user-data.conf.j2
+        dest: "{{ workdir }}/cidata/user-data"
+
+    - name: Generar network-config desde template
+      ansible.builtin.template:
+        src: templates/network-config.conf.j2
+        dest: "{{ workdir }}/cidata/network-config"
+
+    - name: Crear ISO cidata
+      ansible.builtin.shell: |
+        genisoimage -output "{{ workdir }}/cidata.iso" \
+        -volid cidata -joliet -rock \
+        "{{ workdir }}/cidata/meta-data" \
+        "{{ workdir }}/cidata/user-data" \
+        "{{ workdir }}/cidata/network-config"
+      args:
+        creates: "{{ workdir }}/cidata.iso"
+
+    - name: Enlazar ISO del proxy en el directorio base
+      ansible.builtin.file:
+        src: "{{ workdir }}/cidata.iso"
+        dest: "{{ base_workdir }}/cidata.iso"
+        state: link
+    - name: Comprobar si el HTTP ya está escuchando
+      ansible.builtin.shell: "ss -lntp | grep -q ':{{ http_port }}'"
+      register: http_running
+      failed_when: false
+      changed_when: false
+
+    - name: Iniciar HTTP temporal (async)
+      ansible.builtin.shell: >
+        python3 -m http.server {{ http_port }}
+        --directory "{{ base_workdir }}"
+      async: 600
+      poll: 0
+      changed_when: true
+      when: http_running.rc != 0
+
+    - name: Esperar a que el HTTP esté activo
+      ansible.builtin.wait_for:
+        port: "{{ http_port }}"
+        host: "127.0.0.1"
+        delay: 2
+        timeout: 30
+    - name: Guardar IP del nodo Ansible
+      ansible.builtin.set_fact:
+        controller_ip: "{{ ansible_default_ipv4.address }}"
+
+
+- name: Crear VM Debian cloud en Hyper-V
+  hosts: hyperv
+  gather_facts: false
+
+  tasks:
+    - name: Mostrar switches disponibles
+      ansible.windows.win_shell: |
+        Get-VMSwitch | Select-Object Name, SwitchType | Format-Table -AutoSize
+      register: vsw
+      changed_when: false
+
+    - name: Mostrar switches por pantalla
+      ansible.builtin.debug:
+        var: vsw.stdout_lines
+
+    - name: Crear rutas de almacenamiento en Hyper-V
+      ansible.windows.win_file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ hypervvmpath }}"
+        - "{{ hypervvmpath }}\\{{ hypervvmname }}"
+
+    - name: Comprobar si el VHDX ya existe
+      ansible.windows.win_stat:
+        path: "{{ hypervvhdxpath }}"
+      register: remote_vhdx
+
+    - name: Descargar VHDX base al Hyper-V
+      ansible.windows.win_powershell:
+        script: |
+          $url  = "http://{{ hostvars['localhost']['controller_ip'] }}:{{ http_port }}/debian-cloud-base.vhdx"
+          $dest = "{{ hypervvhdxpath }}"
+          $wc   = New-Object System.Net.WebClient
+          $wc.DownloadFile($url, $dest)
+      when: not remote_vhdx.stat.exists
+
+    - name: Descargar ISO cidata al Hyper-V
+      ansible.windows.win_powershell:
+        script: |
+          $url  = "http://{{ hostvars['localhost']['controller_ip'] }}:{{ http_port }}/cidata.iso"
+          $dest = "{{ hypervvmpath }}\{{ hypervvmname }}.iso"
+          $wc   = New-Object System.Net.WebClient
+          $wc.DownloadFile($url, $dest)
+
+
+    - name: Comprobar si la VM ya existe
+      ansible.windows.win_shell: |
+        $vm = Get-VM -Name "{{ hypervvmname }}" -ErrorAction SilentlyContinue
+        if ($vm) { "exists" } else { "notfound" }
+      register: vmcheck
+      changed_when: false
+
+    - name: Crear VM Generation 1
+      ansible.windows.win_shell: |
+        New-VM -Name "{{ hypervvmname }}" -Path "{{ hypervvmpath }}" -Generation 1 -MemoryStartupBytes {{ hypervvmrammb }}MB -SwitchName "{{ hypervvswitch }}"
+        Set-VMProcessor "{{ hypervvmname }}" -Count {{ hypervvmcpu }}
+        Set-VMMemory "{{ hypervvmname }}" -DynamicMemoryEnabled $false
+      when: "'notfound' in vmcheck.stdout"
+
+    - name: Adjuntar disco y unidad DVD
+      ansible.windows.win_shell: |
+        $hdd = Get-VMHardDiskDrive -VMName "{{ hypervvmname }}" -ErrorAction SilentlyContinue
+        if (-not $hdd) {
+          Add-VMHardDiskDrive -VMName "{{ hypervvmname }}" -ControllerType IDE -ControllerNumber 0 -ControllerLocation 0 -Path "{{ hypervvhdxpath }}"
+        }
+        Set-VMDvdDrive -VMName "{{ hypervvmname }}" -ControllerNumber 1 -ControllerLocation 0 -Path "{{ hypervvmpath }}\{{ hypervvmname }}.iso"
+
+    - name: Arrancar la VM
+      ansible.windows.win_shell: |
+        $state = (Get-VM -Name "{{ hypervvmname }}").State
+        if ($state -ne "Running") { Start-VM -Name "{{ hypervvmname }}" }
+      changed_when: true
+
+
+- name: Cerrar HTTP temporal
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Detener HTTP temporal
+      ansible.builtin.shell: |
+        PID=$(ss -lntp | grep ':{{ http_port }}' | grep -oP 'pid=\K[0-9]+')
+        [ -n "$PID" ] && kill "$PID" || true
+      changed_when: false
+
+
+- name: Esperar que la nueva VM responda por SSH
+  hosts: zabbixproxies
+  gather_facts: false
+
+  tasks:
+    - name: Esperar SSH
+      ansible.builtin.wait_for_connection:
+        delay: 30
+        sleep: 10
+        timeout: 420
+
+    - name: Esperar a que cloud-init termine
+      become: true
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false

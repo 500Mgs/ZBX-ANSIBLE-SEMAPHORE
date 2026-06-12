@@ -1,0 +1,74 @@
+---
+- name: Desplegar Zabbix Proxy COMPLETO (instala + registra manual + arranca)
+  hosts: zabbix_proxies
+  become: true
+  serial: 1 #Para evitar problemas.
+
+  vars:
+    zabbix_release_deb: "https://repo.zabbix.com/zabbix/{{ zabbix_version }}/debian/pool/main/z/zabbix-release/zabbix-release_{{ zabbix_version }}-2+debian12_all.deb"
+  tasks:
+    - name: Crear directorio TLS del proxy
+      ansible.builtin.file:
+        path: /etc/zabbix/tls
+        state: directory
+        owner: zabbix
+        group: zabbix
+        mode: "0700"
+
+    - name: Copiar PSK del proxy al host
+      ansible.builtin.copy:
+        src: "{{ tls_proxy_psk_src }}"
+        dest: "{{ tls_proxy_psk_file }}"
+        owner: zabbix
+        group: zabbix
+        mode: "0600"
+
+    - name: Instalar dependencias base
+      ansible.builtin.apt:
+        name:
+          - wget
+          - gnupg
+        state: present
+        update_cache: yes
+    - name: Descargar paquete de repo Zabbix
+      ansible.builtin.get_url:
+        url: "{{ zabbix_release_deb }}"
+        dest: /tmp/zabbix-release.deb
+        mode: "0644"
+    - name: Instalar repo Zabbix
+      ansible.builtin.apt:
+        deb: /tmp/zabbix-release.deb
+    - name: Actualizar índice de paquetes
+      ansible.builtin.apt:
+        update_cache: yes
+    - name: Instalar Zabbix Proxy (SQLite)
+      ansible.builtin.apt:
+        name:
+          - zabbix-proxy-sqlite3
+          - zabbix-sql-scripts
+        state: present
+    - name: Crear directorio para BD del proxy
+      ansible.builtin.file:
+        path: "{{ zabbix_proxy_dbfile | dirname }}"
+        state: directory
+        owner: zabbix
+        group: zabbix
+        mode: "0750"
+    - name: Configurar zabbix_proxy.conf
+      ansible.builtin.template:
+        src: templates/zabbix_proxy.conf.j2
+        dest: /etc/zabbix/zabbix_proxy.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Arrancar/reiniciar zabbix-proxy
+    - name: Habilitar zabbix-proxy
+      ansible.builtin.systemd:
+        name: zabbix-proxy
+        enabled: yes
+        state: started
+  handlers:
+    - name: Arrancar/reiniciar zabbix-proxy
+      ansible.builtin.systemd:
+        name: zabbix-proxy
+        state: started

@@ -1,0 +1,18 @@
+PidFile=/var/run/zabbix/zabbix_agent2.pid
+
+LogType=file
+LogFile=/var/log/zabbix/zabbix_agent2.log
+LogFileSize=10
+
+Server={{ zabbix_proxy_ip }}
+ServerActive={{ zabbix_proxy_ip }}
+
+Hostname={{ inventory_hostname }}
+
+Include=/etc/zabbix/zabbix_agent2.d/*.conf
+Include=./zabbix_agent2.d/plugins.d/*.conf
+
+ControlSocket=/tmp/agent.sock
+
+RefreshActiveChecks=60
+ForceActiveChecksOnStart=1

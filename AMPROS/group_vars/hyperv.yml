@@ -1,0 +1,12 @@
+hypervvmname: "zbx-proxy-AMPROS"
+hypervvmrammb: 2048
+hypervvmcpu: 2
+hypervvmpath: "C:\\VM"
+hypervvhdxpath: "C:\\VM\\zbx-proxy-AMPROS\\zbx-proxy-AMPROS.vhdx"
+hypervvswitch: "NIC-Externa"
+
+vmip: "192.168.2.236"
+vmprefix: 24
+vmgateway: "192.168.2.254"
+vmdns: "8.8.8.8"
+vmhostname: "zbx-proxy-AMPROS"

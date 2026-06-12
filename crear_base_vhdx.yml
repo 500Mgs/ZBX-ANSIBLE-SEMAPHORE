@@ -1,0 +1,57 @@
+---
+- name: Generar imagen base Debian cloud en el nodo Ansible
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    debian_cloud_url: "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.tar.xz"
+    base_workdir: "/var/cache/ansible/cloud-debian-12"
+    base_tar: "{{ base_workdir }}/debian-12-genericcloud-amd64.tar.xz"
+    base_raw: "{{ base_workdir }}/disk.raw"
+    base_vhdx: "{{ base_workdir }}/debian-cloud-base.vhdx"
+
+  tasks:
+    - name: Crear directorio de cache
+      ansible.builtin.file:
+        path: "{{ base_workdir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Comprobar si ya existe la imagen cloud descargada
+      ansible.builtin.stat:
+        path: "{{ base_tar }}"
+      register: cloud_tar
+
+    - name: Descargar imagen cloud Debian 12
+      ansible.builtin.get_url:
+        url: "{{ debian_cloud_url }}"
+        dest: "{{ base_tar }}"
+        mode: "0644"
+        timeout: 600
+      when: not cloud_tar.stat.exists
+
+    - name: Comprobar si ya existe la imagen raw
+      ansible.builtin.stat:
+        path: "{{ base_raw }}"
+      register: cloud_raw
+
+    - name: Extraer imagen raw (solo si no existe disk.raw)
+      ansible.builtin.shell: |
+        set -e
+        cd "{{ base_workdir }}"
+        tar xf "{{ base_tar }}" --wildcards '*.raw'
+        RAW=$(ls *.raw | head -1)
+        mv "$RAW" disk.raw
+      when: not cloud_raw.stat.exists
+
+    - name: Comprobar si ya existe el VHDX base
+      ansible.builtin.stat:
+        path: "{{ base_vhdx }}"
+      register: base_vhdx_stat
+
+    - name: Convertir raw a VHDX base genérico
+      ansible.builtin.shell: |
+        qemu-img convert -f raw -O vhdx -o subformat=dynamic \
+        "{{ base_raw }}" "{{ base_vhdx }}"
+      when: not base_vhdx_stat.stat.exists

@@ -1,0 +1,16 @@
+# ============================================================
+#  VARIABLES GLOBALES — editar por cliente
+# ============================================================
+
+# --- Zabbix ---
+zabbix_version: "7.0"
+zabbix_server_ip: "192.168.0.119"      # Tu server central, no cambia
+zabbix_proxy_ip: "PROXY_IP"            # IP del proxy de este cliente
+zabbix_proxy_name: "zbx-proxy-NOMBRE"  # Nombre único en Zabbix Server
+
+# --- Proxy SQLite ---
+zabbix_proxy_dbfile: "/var/lib/zabbix/proxy.db"
+
+# --- PSK (cifrado agente↔proxy) ---
+zabbix_tls_psk_identity: "proxy-NOMBRE"
+zabbix_tls_psk_file: "/etc/zabbix/tls/proxy.psk"
