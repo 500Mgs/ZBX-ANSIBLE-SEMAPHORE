@@ -1,38 +1,38 @@
 ---
-- name: Generar PSK del cliente si no existe
+- name: Generar clave SSH del cliente si no existe
   hosts: localhost
   connection: local
   gather_facts: false
+
   vars:
-    psk_path: "{{ inventory_dir }}/files/proxy.psk"
+    cliente_id: "{{ zabbix_proxy_hostname | default('cliente_sin_nombre') }}"
+    ssh_key_dir: "/home/usuario/.ssh"
+    ssh_key_path: "{{ ssh_key_dir }}/ansible_{{ cliente_id }}"
+
   tasks:
-    - name: Crear carpeta files del cliente si no existe
+    - name: Crear carpeta de claves si no existe
       ansible.builtin.file:
-        path: "{{ inventory_dir }}/files"
+        path: "{{ ssh_key_dir }}"
         state: directory
         mode: "0700"
 
-    - name: Comprobar si ya existe el PSK
+    - name: Comprobar si ya existe la clave
       ansible.builtin.stat:
-        path: "{{ psk_path }}"
-      register: psk_stat
+        path: "{{ ssh_key_path }}"
+      register: ssh_key_stat
 
-    - name: Generar PSK hexadecimal aleatorio
-      ansible.builtin.shell: "openssl rand -hex 32 > '{{ psk_path }}'"
-      when: not psk_stat.stat.exists
-      changed_when: true
-
-    - name: Ajustar permisos del PSK
-      ansible.builtin.file:
-        path: "{{ psk_path }}"
+    - name: Generar par de claves SSH ed25519
+      community.crypto.openssh_keypair:
+        path: "{{ ssh_key_path }}"
+        type: ed25519
         mode: "0600"
-      when: not psk_stat.stat.exists
+      when: not ssh_key_stat.stat.exists
 
     - name: Mostrar resultado
       ansible.builtin.debug:
         msg: >-
-          {% if psk_stat.stat.exists %}
-          El PSK ya existía en {{ psk_path }} y no se ha modificado.
+          {% if ssh_key_stat.stat.exists %}
+          La clave ya existía en {{ ssh_key_path }} y no se ha modificado.
           {% else %}
-          PSK generado correctamente en {{ psk_path }}.
+          Clave SSH generada correctamente en {{ ssh_key_path }}.
           {% endif %}
