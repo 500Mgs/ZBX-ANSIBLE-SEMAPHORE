@@ -1,8 +1,8 @@
 all:
- children:
-  hyperv:
-   hosts:
-    hyperv-host:
-  zabbixproxies:
-   hosts:
-    zbx-proxy:
+  children:
+    hyperv:
+      hosts:
+        hyperv-host:
+    zabbixproxies:
+      hosts:
+        zbx-proxy:
