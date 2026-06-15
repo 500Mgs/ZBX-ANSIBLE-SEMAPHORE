@@ -1,38 +1,48 @@
 ---
-- name: Generar clave SSH del cliente si no existe
+- name: Generar Clave PSK de Zabbix por Cliente
   hosts: localhost
   connection: local
   gather_facts: false
 
   vars:
     cliente_id: "{{ cliente_id | default('cliente_sin_nombre') }}"
-    ssh_key_dir: "/home/usuario/.ssh"
-    ssh_key_path: "{{ ssh_key_dir }}/ansible_{{ cliente_id }}"
+    psk_dir: "/home/usuario/zbx/psk"
+    psk_file_path: "{{ psk_dir }}/ansible_{{ cliente_id }}.psk"
 
   tasks:
-    - name: Crear carpeta de claves si no existe
+    - name: Asegurar que el directorio para las PSK existe
       ansible.builtin.file:
-        path: "{{ ssh_key_dir }}"
+        path: "{{ psk_dir }}"
         state: directory
-        mode: "0700"
+        mode: "0750"
 
-    - name: Comprobar si ya existe la clave
+    - name: Comprobar si ya existe la PSK para este cliente
       ansible.builtin.stat:
-        path: "{{ ssh_key_path }}"
-      register: ssh_key_stat
+        path: "{{ psk_file_path }}"
+      register: psk_stat
 
-    - name: Generar par de claves SSH ed25519
-      community.crypto.openssh_keypair:
-        path: "{{ ssh_key_path }}"
-        type: ed25519
+    - name: Generar clave PSK aleatoria (64 caracteres hexadecimales)
+      ansible.builtin.command: "openssl rand -hex 32"
+      register: openssl_output
+      when: not psk_stat.stat.exists
+      changed_when: true
+
+    - name: Guardar la PSK generada en el archivo del cliente
+      ansible.builtin.copy:
+        content: "{{ openssl_output.stdout }}"
+        dest: "{{ psk_file_path }}"
         mode: "0600"
-      when: not ssh_key_stat.stat.exists
+      when: not psk_stat.stat.exists
 
-    - name: Mostrar resultado
+    - name: Leer el contenido de la PSK (tanto si es nueva como existente)
+      ansible.builtin.command: "cat {{ psk_file_path }}"
+      register: psk_content
+      changed_when: false
+
+    - name: Mostrar resultados del despliegue
       ansible.builtin.debug:
-        msg: >-
-          {% if ssh_key_stat.stat.exists %}
-          La clave ya existía en {{ ssh_key_path }} y no se ha modificado.
-          {% else %}
-          Clave SSH generada correctamente en {{ ssh_key_path }}.
-          {% endif %}
+        msg:
+          - "CLIENTE: {{ cliente_id }}"
+          - "RUTA DEL ARCHIVO: {{ psk_file_path }}"
+          - "VALOR DE LA PSK (Copia esto en Zabbix Central): {{ psk_content.stdout }}"
+          - "ESTADO: {% if openssl_output.skipped | default(false) %}La clave ya existía y se ha mantenido intacta.{% else %}Nueva clave generada de forma segura.{% endif %}"
