@@ -5,7 +5,7 @@
   gather_facts: false
 
   vars:
-    cliente_id: "{{ zabbix_proxy_hostname | default('cliente_sin_nombre') }}"
+    cliente_id: "{{ cliente_id | default('cliente_sin_nombre') }}"
     ssh_key_dir: "/home/usuario/.ssh"
     ssh_key_path: "{{ ssh_key_dir }}/ansible_{{ cliente_id }}"
 
