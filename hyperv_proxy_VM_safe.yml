@@ -157,6 +157,7 @@
   vars:
     ansible_host: "{{ proxy_ip }}"
     ansible_user: "{{ proxy_user | default('Ansible') }}"
+    ansible_ssh_private_key_file: "{{ proxy_key_path }}"
 
   tasks:
     - name: Esperar SSH
