@@ -21,15 +21,6 @@
     ansible_pubkey: "{{ lookup('file', '/home/usuario/.ssh/id_ed25519.pub') }}"
 
   tasks:
-    - name: Instalar herramientas locales
-      ansible.builtin.apt:
-        name:
-          - genisoimage
-          - qemu-utils
-          - xz-utils
-        state: present
-        update_cache: true
-      become: true
 
     - name: Crear directorio de trabajo
       ansible.builtin.file:
