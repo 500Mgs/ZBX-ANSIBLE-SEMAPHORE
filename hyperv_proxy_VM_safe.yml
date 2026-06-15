@@ -112,7 +112,7 @@
           - "host={{ ansible_host }}"
           - "user={{ ansible_user }}"
           - "transport={{ ansible_winrm_transport }}"
-          
+
     - name: Obtener versión de Hyper-V
       ansible.windows.win_shell: |
         $os = Get-CimInstance Win32_OperatingSystem
@@ -138,6 +138,9 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  
+  vars:
+    http_port: 8765
 
   tasks:
     - name: Detener HTTP temporal
