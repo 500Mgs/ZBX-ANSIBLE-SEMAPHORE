@@ -138,7 +138,7 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  
+
   vars:
     http_port: 8765
 
@@ -153,6 +153,10 @@
 - name: Esperar que la nueva VM responda por SSH
   hosts: zabbixproxies
   gather_facts: false
+
+  vars:
+    ansible_host: "{{ proxy_ip }}"
+    ansible_user: "{{ proxy_user | default('zabbix') }}"
 
   tasks:
     - name: Esperar SSH
