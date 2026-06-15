@@ -156,7 +156,7 @@
 
   vars:
     ansible_host: "{{ proxy_ip }}"
-    ansible_user: "{{ proxy_user | default('zabbix') }}"
+    ansible_user: "{{ proxy_user | default('Ansible') }}"
 
   tasks:
     - name: Esperar SSH
