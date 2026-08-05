@@ -1,15 +1,36 @@
+---
+# === VERSIÓN ===
 zabbix_version: "7.4"
-client_name: "AMPROS"
 
+# === DATOS DEL CLIENTE ===
+client_name: "AMPROS"
+cliente_id: "AMPROS"  # Usado para nombrar PSK, claves SSH, etc.
+
+# === RED ===
 zabbix_server_ip: "192.168.0.119"
 zabbix_proxy_ip: "192.168.2.236"
 zabbix_proxy_hostname: "zbx-proxy-AMPROS"
 zabbix_proxy_mode: "0"
+
+# === REPOSITORIO ZABBIX ===
 zabbix_release_deb: "https://repo.zabbix.com/zabbix/{{ zabbix_version }}/release/debian/pool/main/z/zabbix-release/zabbix-release_latest+debian12_all.deb"
 
+# === BASE DE DATOS PROXY ===
 zabbix_proxy_dbfile: "/var/lib/zabbix/proxy.db"
 
-tls_proxy_identity: "proxy-AMPROS"
+# === TLS / PSK ===
+# Ruta centralizada en el nodo Ansible (generada por generar-psk.yml)
+tls_proxy_psk_src: "/home/usuario/zbx/psk/ansible_{{ cliente_id }}.psk"
+
+# Ruta destino en el proxy
 tls_proxy_psk_file: "/etc/zabbix/tls/proxy.psk"
-tls_proxy_psk_src: "{{ inventory_dir }}/files/proxy.psk"
+
+# Identidad PSK en Zabbix (debe coincidir en Server y proxy.conf)
+tls_proxy_identity: "proxy-{{ cliente_id }}"
+
+# === OTROS ===
 http_port: 8765
+
+# === SSH (por cliente, construida desde cliente_id) ===
+proxy_user: "ansible"
+proxy_key_path: "/home/usuario/.ssh/ansible_{{ cliente_id }}"

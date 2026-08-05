@@ -1,0 +1,125 @@
+---
+# ============================================================================
+#  preparar-cliente.yml
+#  Propósito: Genera PSK y clave SSH del cliente en el nodo Ansible.
+#             Todo en local, sin tocar el proxy todavía.
+#  Semaphore: Template "Preparar cliente" → Variable Group "Cliente <ID>"
+#  Uso:       ansible-playbook preparar-cliente.yml
+#             (sin inventario de cliente, solo necesita el Variable Group)
+# ============================================================================
+
+# ── PLAY 1: Guardia ──────────────────────────────────────────────────────────
+- name: Validar variables de cliente
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Comprobar que cliente_id está definido correctamente
+      ansible.builtin.assert:
+        that:
+          - cliente_id is defined
+          - cliente_id != ""
+          - cliente_id != "cliente_sin_nombre"
+        fail_msg: >
+          ERROR: Carga el Variable Group del cliente antes de ejecutar.
+          Necesitas cliente_id definido (p.ej. AMPROS).
+
+
+# ── PLAY 2: PSK de Zabbix ────────────────────────────────────────────────────
+- name: Generar PSK de Zabbix del cliente
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    psk_dir: "/home/usuario/zbx/psk"
+    psk_path: "{{ psk_dir }}/ansible_{{ cliente_id }}.psk"
+
+  tasks:
+    - name: Asegurar que el directorio de PSK existe
+      ansible.builtin.file:
+        path: "{{ psk_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Comprobar si ya existe la PSK para este cliente
+      ansible.builtin.stat:
+        path: "{{ psk_path }}"
+      register: psk_stat
+
+    - name: Generar PSK aleatoria (solo si no existe)
+      ansible.builtin.command:
+        cmd: "openssl rand -hex 32"
+      register: psk_generated
+      when: not psk_stat.stat.exists
+      changed_when: true
+
+    - name: Guardar PSK en fichero del cliente
+      ansible.builtin.copy:
+        content: "{{ psk_generated.stdout }}"
+        dest: "{{ psk_path }}"
+        mode: "0600"
+      when: not psk_stat.stat.exists
+
+    - name: Leer PSK (nueva o existente)
+      ansible.builtin.command:
+        cmd: "cat {{ psk_path }}"
+      register: psk_content
+      changed_when: false
+
+    - name: Mostrar resultado PSK
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "  [PSK] Cliente: {{ cliente_id }}"
+          - "  Ruta:   {{ psk_path }}"
+          - "  Estado: {% if psk_stat.stat.exists %}Ya existía — no modificada{% else %}Nueva clave generada{% endif %}"
+          - "  Valor (pegar en Zabbix Server → Proxies → Encryption):"
+          - "  {{ psk_content.stdout }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+
+# ── PLAY 3: Clave SSH de Ansible ─────────────────────────────────────────────
+- name: Generar clave SSH del cliente para Ansible
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    ssh_dir: "/home/usuario/.ssh"
+    ssh_key_path: "{{ ssh_dir }}/ansible_{{ cliente_id }}"
+
+  tasks:
+    - name: Comprobar si ya existe la clave SSH del cliente
+      ansible.builtin.stat:
+        path: "{{ ssh_key_path }}"
+      register: ssh_stat
+
+    - name: Generar par de claves SSH ed25519 (solo si no existe)
+      ansible.builtin.command:
+        cmd: >
+          ssh-keygen -t ed25519
+          -f {{ ssh_key_path }}
+          -C "ansible-{{ cliente_id }}"
+          -N ""
+      when: not ssh_stat.stat.exists
+      changed_when: true
+
+    - name: Leer clave pública
+      ansible.builtin.command:
+        cmd: "cat {{ ssh_key_path }}.pub"
+      register: pubkey_content
+      changed_when: false
+
+    - name: Mostrar resultado clave SSH
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "  [SSH] Cliente: {{ cliente_id }}"
+          - "  Clave privada: {{ ssh_key_path }}"
+          - "  Clave pública: {{ ssh_key_path }}.pub"
+          - "  Estado: {% if ssh_stat.stat.exists %}Ya existía — no modificada{% else %}Nuevo par generado{% endif %}"
+          - "  Clave pública (se instalará en el proxy en el siguiente paso):"
+          - "  {{ pubkey_content.stdout }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
