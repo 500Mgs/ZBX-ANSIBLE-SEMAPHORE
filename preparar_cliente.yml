@@ -123,3 +123,258 @@
           - "  Clave pública (se instalará en el proxy en el siguiente paso):"
           - "  {{ pubkey_content.stdout }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+
+# ── PLAY 4: Provisionamiento de objetos en Semaphore ─────────────────────────
+- name: Crear objetos del cliente en Semaphore mediante API
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # La URL final será: http://semaphore.local/api/project/1
+    semaphore_project_api: >-
+      {{ semaphore_api_url }}/project/{{ semaphore_project_id }}
+
+    semaphore_auth_headers:
+      Authorization: "Bearer {{ semaphore_api_token }}"
+      Content-Type: "application/json"
+
+    # Ruta que ya creó el Play 3.
+    ssh_key_path: "/home/usuario/.ssh/ansible_{{ cliente_id }}"
+
+    # Ruta que ya creó el Play 2.
+    psk_path: "/home/usuario/zbx/psk/ansible_{{ cliente_id }}.psk"
+
+    # Variables persistentes del cliente que se guardarán en el Environment.
+    # IMPORTANTE: ajusta los nombres exactos a las variables reales de tus playbooks.
+    client_extra_vars:
+      cliente_id: "{{ cliente_id }}"
+
+      # Zabbix
+      zabbix_version: "{{ zabbix_version | default('7.4') }}"
+      zabbix_server_ip: "{{ zabbix_server_ip | default('192.168.0.119') }}"
+      zabbix_proxy_ip: "{{ zabbix_proxy_ip }}"
+      zabbix_proxy_hostname: "zbx-proxy-{{ cliente_id }}"
+      zabbix_proxy_mode: "{{ zabbix_proxy_mode | default('0') }}"
+      zabbix_proxy_dbfile: >-
+        {{ zabbix_proxy_dbfile | default('/var/lib/zabbix/proxy.db') }}
+
+      # PSK del proxy
+      tls_proxy_psk_src: "{{ psk_path }}"
+      tls_proxy_psk_file: "/etc/zabbix/tls/proxy.psk"
+      tls_proxy_identity: "proxy-{{ cliente_id }}"
+
+      # Acceso SSH al proxy
+      proxy_user: "{{ proxy_user | default('ansible') }}"
+      proxy_key_path: "{{ ssh_key_path }}"
+
+      # Máquina virtual del proxy
+      vm_name: "zbx-proxy-{{ cliente_id }}"
+      vm_ip: "{{ zabbix_proxy_ip }}"
+      vm_prefix: "{{ vm_prefix | default(24) }}"
+      vm_gateway: "{{ vm_gateway }}"
+      vm_dns: "{{ vm_dns | default('8.8.8.8') }}"
+
+      # Host Hyper-V
+      hyperv_host_ip: "{{ hyperv_host_ip }}"
+
+      # Parámetros de la VM Hyper-V.
+      hypervvmrammb: "{{ hypervvmrammb | default(2048) }}"
+      hypervvmcpu: "{{ hypervvmcpu | default(2) }}"
+      hypervvmpath: "{{ hypervvmpath | default('C:\\VM') }}"
+      hypervvhdxpath: >-
+        {{ hypervvhdxpath | default(
+          'C:\\VM\\zbx-proxy-' ~ cliente_id ~
+          '\\zbx-proxy-' ~ cliente_id ~ '.vhdx'
+        ) }}
+      hypervvswitch: "{{ hypervvswitch | default('NIC-Externa') }}"
+
+      # Credencial Windows.
+      ansible_user: "{{ windows_admin_user | default('Administrador') }}"
+      ansible_password: "{{ windows_admin_password }}"
+
+    # Inventario estático que quedará guardado en Semaphore.
+    inventory_text: |
+      [zabbix_proxies]
+      zbx-proxy-{{ cliente_id }} ansible_host={{ zabbix_proxy_ip }} ansible_user={{ proxy_user | default('ansible') }}
+
+      [hypervhost]
+      zbx-hyperv-{{ cliente_id }} ansible_host={{ hyperv_host_ip }}
+
+      [windows]
+      {% for line in (windows_hosts | default('')).splitlines() if line | trim %}
+      {{ (line.split(',', 1)[0] | trim) }} ansible_host={{ (line.split(',', 1)[1] | trim) }}
+      {% endfor %}
+
+      [windows:vars]
+      ansible_ssh_common_args='-o ProxyJump={{ proxy_user | default("ansible") }}@{{ zabbix_proxy_ip }}'
+
+  tasks:
+    - name: Validar variables de infraestructura Semaphore
+      ansible.builtin.assert:
+        that:
+          - semaphore_api_url is defined
+          - semaphore_api_url | length > 0
+          - semaphore_project_id is defined
+          - semaphore_repository_id is defined
+          - semaphore_api_token is defined
+          - semaphore_api_token | length > 0
+        fail_msg: >-
+          Falta una variable de Semaphore_Bootstrap. Verifica
+          semaphore_api_url, semaphore_project_id,
+          semaphore_repository_id y semaphore_api_token.
+
+    - name: Validar datos recibidos desde el Survey
+      ansible.builtin.assert:
+        that:
+          - zabbix_proxy_ip is defined
+          - zabbix_proxy_ip | length > 0
+          - hyperv_host_ip is defined
+          - hyperv_host_ip | length > 0
+          - vm_gateway is defined
+          - vm_gateway | length > 0
+          - windows_hosts is defined
+          - windows_admin_password is defined
+          - windows_admin_password | length > 0
+        fail_msg: >-
+          Faltan datos del Survey. Revisa zabbix_proxy_ip,
+          hyperv_host_ip, vm_gateway, windows_hosts y
+          windows_admin_password.
+
+    - name: Comprobar que existe la clave SSH generada en el Play 3
+      ansible.builtin.stat:
+        path: "{{ ssh_key_path }}"
+      register: ssh_private_key_stat
+
+    - name: Detener si no existe la clave privada SSH
+      ansible.builtin.assert:
+        that:
+          - ssh_private_key_stat.stat.exists
+        fail_msg: >-
+          No existe {{ ssh_key_path }}. El Play 3 no generó correctamente
+          la clave SSH del cliente.
+
+    - name: Leer la clave privada SSH del cliente
+      ansible.builtin.slurp:
+        src: "{{ ssh_key_path }}"
+      register: ssh_priv_key_raw
+      no_log: true
+
+    - name: Consultar Environments existentes
+      ansible.builtin.uri:
+        url: "{{ semaphore_project_api }}/environment"
+        method: GET
+        headers: "{{ semaphore_auth_headers }}"
+        return_content: true
+        status_code: 200
+      register: semaphore_environments
+      no_log: true
+
+    - name: Detener si ya existe el Environment del cliente
+      ansible.builtin.assert:
+        that:
+          - >-
+            (
+              semaphore_environments.json
+              | selectattr('name', 'equalto', 'Cliente_' ~ cliente_id)
+              | list
+              | length
+            ) == 0
+        fail_msg: >-
+          Ya existe Cliente_{{ cliente_id }} en Semaphore. No se continúa
+          para evitar duplicados. Comprueba si el cliente ya fue creado o
+          limpia los objetos creados en un intento fallido anterior.
+
+    - name: Crear Environment del cliente
+      ansible.builtin.uri:
+        url: "{{ semaphore_project_api }}/environment"
+        method: POST
+        headers: "{{ semaphore_auth_headers }}"
+        body_format: json
+        body:
+          name: "Cliente_{{ cliente_id }}"
+          project_id: "{{ semaphore_project_id }}"
+          json: "{{ client_extra_vars | to_json }}"
+          env: "{}"
+        return_content: true
+        status_code: [200, 201]
+      register: env_result
+      no_log: true
+
+    - name: Crear credencial SSH del cliente en Key Store
+      ansible.builtin.uri:
+        url: "{{ semaphore_project_api }}/keys"
+        method: POST
+        headers: "{{ semaphore_auth_headers }}"
+        body_format: json
+        body:
+          name: "SSH_{{ cliente_id }}"
+          project_id: "{{ semaphore_project_id }}"
+          type: "ssh"
+          ssh:
+            login: "{{ proxy_user | default('ansible') }}"
+            passphrase: ""
+            private_key: "{{ ssh_priv_key_raw.content | b64decode }}"
+        return_content: true
+        status_code: [200, 201]
+      register: key_result
+      no_log: true
+
+    - name: Crear Inventory estático del cliente
+      ansible.builtin.uri:
+        url: "{{ semaphore_project_api }}/inventory"
+        method: POST
+        headers: "{{ semaphore_auth_headers }}"
+        body_format: json
+        body:
+          name: "Inventory_{{ cliente_id }}"
+          project_id: "{{ semaphore_project_id }}"
+          type: "static"
+          inventory: "{{ inventory_text }}"
+          ssh_key_id: "{{ key_result.json.id }}"
+        return_content: true
+        status_code: [200, 201]
+      register: inv_result
+      no_log: true
+
+    - name: Crear Task Templates del cliente
+      ansible.builtin.uri:
+        url: "{{ semaphore_project_api }}/templates"
+        method: POST
+        headers: "{{ semaphore_auth_headers }}"
+        body_format: json
+        body:
+          project_id: "{{ semaphore_project_id }}"
+          repository_id: "{{ semaphore_repository_id }}"
+          inventory_id: "{{ inv_result.json.id }}"
+          environment_id: "{{ env_result.json.id }}"
+          name: "{{ item.name }} - {{ cliente_id }}"
+          playbook: "{{ item.playbook }}"
+          arguments: "[]"
+        return_content: true
+        status_code: [200, 201]
+      loop:
+        - name: "Desplegar Proxy"
+          playbook: "playbook_proxy.yml"
+        - name: "Agentes Linux"
+          playbook: "agente-zabbix.yml"
+        - name: "Agentes Windows"
+          playbook: "agente-zabbix-win.yml"
+        - name: "Agente Veeam"
+          playbook: "agente-veam-zabbix-win.yml"
+      loop_control:
+        label: "{{ item.name }} - {{ cliente_id }}"
+      register: template_result
+
+    - name: Mostrar resumen del aprovisionamiento
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Cliente {{ cliente_id }} aprovisionado en Semaphore"
+          - "Environment: Cliente_{{ cliente_id }} (ID {{ env_result.json.id }})"
+          - "Key Store: SSH_{{ cliente_id }} (ID {{ key_result.json.id }})"
+          - "Inventory: Inventory_{{ cliente_id }} (ID {{ inv_result.json.id }})"
+          - "Templates creadas: {{ template_result.results | length }}"
+          - "Siguiente paso: ejecutar Desplegar Proxy - {{ cliente_id }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

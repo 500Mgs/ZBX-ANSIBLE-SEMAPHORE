@@ -102,7 +102,7 @@
 
 
 - name: Crear VM Debian cloud en Hyper-V
-  hosts: hyperv
+  hosts: hypervhost
   gather_facts: false
 
   vars:

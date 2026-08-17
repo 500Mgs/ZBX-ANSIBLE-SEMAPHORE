@@ -1,6 +1,6 @@
 ---
 - name: Desplegar Zabbix Proxy COMPLETO (instala + registra manual + arranca)
-  hosts: zabbix_proxies
+  hosts: zabbixproxies
   become: true
   serial: 1 #Para evitar problemas.
 
