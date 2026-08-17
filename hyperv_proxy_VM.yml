@@ -202,7 +202,6 @@
   gather_facts: false
 
   vars:
-    cliente_id: "{{ zabbix_proxy_hostname }}"
     proxy_user: "ansible"
     proxy_key_path: "/home/usuario/.ssh/ansible_{{ cliente_id }}"
     ansible_host: "{{ vm_ip }}"
