@@ -190,8 +190,10 @@
         ) }}
       hypervvswitch: "{{ hypervvswitch | default('NIC-Externa') }}"
 
-      # Credencial Windows.
-      ansible_user: "{{ windows_admin_user | default('Administrador') }}"
+      # Credenciales Hyper-V y Windows.
+      hyperv_user: "{{ hyperv_user }}"
+      hyperv_password: "{{ hyperv_password }}"
+      ansible_user: "{{ windows_admin_user }}"
       ansible_password: "{{ windows_admin_password }}"
 
     # Inventario estático que quedará guardado en Semaphore.
