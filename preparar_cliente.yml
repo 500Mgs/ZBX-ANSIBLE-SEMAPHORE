@@ -175,6 +175,7 @@
 
       # Máquina virtual del proxy
       vm_name: "zbx-proxy-{{ cliente_id }}"
+      hypervvmname: "zbx-proxy-{{ cliente_id }}"
       vm_ip: "{{ zabbix_proxy_ip }}"
       vm_prefix: "{{ vm_prefix | default(24) }}"
       vm_gateway: "{{ vm_gateway }}"
