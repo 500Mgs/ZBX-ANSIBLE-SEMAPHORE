@@ -331,6 +331,14 @@
       register: key_result
       no_log: true
 
+    - name: Diagnóstico - confirmar ID de Key Store
+      ansible.builtin.debug:
+        msg:
+          - "Key Store creado: SSH_{{ cliente_id }}"
+          - "Key ID recibido: {{ key_result.json.id }}"
+          - "Tipo del ID: {{ key_result.json.id | type_debug }}"
+      no_log: false
+
     - name: Crear Inventory estático del cliente
       ansible.builtin.uri:
         url: "{{ semaphore_project_api }}/inventory"
@@ -339,14 +347,14 @@
         body_format: json
         body:
           name: "Inventory_{{ cliente_id }}"
-          project_id: "{{ semaphore_project_id }}"
+          project_id: "{{ semaphore_project_id | int }}"
           type: "static"
           inventory: "{{ inventory_text }}"
-          ssh_key_id: "{{ key_result.json.id }}"
+          ssh_key_id: "{{ key_result.json.id | int }}"
         return_content: true
         status_code: [200, 201]
       register: inv_result
-      no_log: false
+      no_log: true
 
     - name: Crear Task Templates del cliente
       ansible.builtin.uri:
