@@ -238,7 +238,12 @@
           - hyperv_host_ip | length > 0
           - vm_gateway is defined
           - vm_gateway | length > 0
-          - windows_hosts is defined
+          - hyperv_user is defined
+          - hyperv_user | length > 0
+          - hyperv_password is defined
+          - hyperv_password | length > 0
+          - windows_admin_user is defined
+          - windows_admin_user | length > 0
           - windows_admin_password is defined
           - windows_admin_password | length > 0
         fail_msg: >-
