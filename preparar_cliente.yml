@@ -358,7 +358,7 @@
         status_code: [200, 201]
       loop:
         - name: "Desplegar Proxy"
-          playbook: "playbook_proxy.yml"
+          playbook: "tunnel_hyperv_proxy_VM.yml"
         - name: "Agentes Linux"
           playbook: "agente-zabbix.yml"
         - name: "Agentes Windows"
