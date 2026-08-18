@@ -213,6 +213,17 @@
       ansible_ssh_common_args='-o ProxyJump={{ proxy_user | default("ansible") }}@{{ zabbix_proxy_ip }}'
 
   tasks:
+    - name: Diagnóstico de variables Bootstrap
+      ansible.builtin.debug:
+        msg:
+          - "semaphore_api_url definida: {{ semaphore_api_url is defined }}"
+          - "semaphore_project_id definido: {{ semaphore_project_id is defined }}"
+          - "semaphore_repository_id definido: {{ semaphore_repository_id is defined }}"
+          - "semaphore_api_token definido: {{ semaphore_api_token is defined }}"
+          - "SEMAPHORE_API_TOKEN definido: {{ lookup('ansible.builtin.env', 'SEMAPHORE_API_TOKEN') | length > 0 }}"
+          - "semaphore_api_token como entorno: {{ lookup('ansible.builtin.env', 'semaphore_api_token') | length > 0 }}"
+      no_log: false
+      
     - name: Validar variables de infraestructura Semaphore
       ansible.builtin.assert:
         that:
