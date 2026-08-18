@@ -140,7 +140,8 @@
       {{ lookup('ansible.builtin.env', 'semaphore_api_token') | trim }}
 
     semaphore_auth_headers:
-      Authorization: "Bearer {{ semaphore_api_token_effective }}"
+      Authorization: >-
+        Bearer {{ lookup('ansible.builtin.env', 'semaphore_api_token') | trim }}
       Content-Type: "application/json"
 
     # Ruta que ya creó el Play 3.
