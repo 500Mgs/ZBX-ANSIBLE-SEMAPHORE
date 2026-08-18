@@ -75,6 +75,10 @@
         src: "{{ workdir }}/cidata.iso"
         dest: "{{ base_workdir }}/cidata.iso"
         state: link
+        force: true
+        follow: false
+      become: true
+
     - name: Comprobar si el HTTP ya está escuchando
       ansible.builtin.shell: "ss -lntp | grep -q ':{{ http_port }}'"
       register: http_running
