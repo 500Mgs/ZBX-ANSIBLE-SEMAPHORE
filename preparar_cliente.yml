@@ -390,22 +390,22 @@
         url: "{{ semaphore_project_api }}/templates"
         method: POST
         headers: "{{ semaphore_auth_headers }}"
-        body_format: json
-        body:
-          project_id: "{{ semaphore_project_id | int }}"
-          repository_id: "{{ semaphore_repository_id | int }}"
-          inventory_id: "{{ inv_result.json.id | int }}"
-
-          # En Semaphore 2.18 se envían ambos campos.
-          environment_id: "{{ env_result.json.id | int }}"
-          environment_ids:
-            - "{{ env_result.json.id | int }}"
-
-          name: "{{ item.name }} - {{ cliente_id }}"
-          playbook: "/home/usuario/zbx/{{ item.playbook }}"
-          arguments: "[]"
-          app: "ansible"
-          survey_vars: []
+        body: >-
+          {{
+            {
+              'project_id': semaphore_project_id | int,
+              'repository_id': semaphore_repository_id | int,
+              'inventory_id': inv_result.json.id | int,
+              'environment_id': env_result.json.id | int,
+              'environment_ids': [env_result.json.id | int],
+              'name': item.name ~ ' - ' ~ cliente_id,
+              'playbook': '/home/usuario/zbx/' ~ item.playbook,
+              'arguments': '[]',
+              'app': 'ansible',
+              'type': 'task',
+              'survey_vars': []
+            } | to_json
+          }}
         return_content: true
         status_code: [200, 201]
       loop:
