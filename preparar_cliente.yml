@@ -312,22 +312,6 @@
       register: env_result
       no_log: true
 
-      
-    - name: Debug payload que se enviará a /keys
-      debug:
-        msg: >-
-          {{
-            {
-              'name': 'SSH_' ~ cliente_id,
-              'project_id': semaphore_project_id | int,
-              'type': 'ssh',
-              'login': proxy_user | default('ansible'),
-              'passphrase': '',
-              'private_key': ssh_priv_key_raw.content | b64decode
-            } | to_json(indent=2)
-          }}
-      no_log: false
-
 
     - name: Crear credencial SSH del cliente en Key Store
       ansible.builtin.uri:
@@ -339,9 +323,10 @@
           name: "SSH_{{ cliente_id }}"
           project_id: "{{ semaphore_project_id | int }}"
           type: "ssh"
-          login: "{{ proxy_user | default('ansible') }}"
-          passphrase: ""
-          private_key: "{{ ssh_priv_key_raw.content | b64decode }}"
+          ssh:
+            login: "{{ proxy_user | default('ansible') }}"
+            passphrase: ""
+            private_key: "{{ ssh_priv_key_raw.content | b64decode }}"
         return_content: true
         status_code: [200, 201]
       register: key_result
