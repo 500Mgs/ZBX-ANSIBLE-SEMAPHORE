@@ -322,18 +322,13 @@
           name: "SSH_{{ cliente_id }}"
           project_id: "{{ semaphore_project_id | int }}"
           type: "ssh"
-          string: >-
-            {{
-              {
-                'login': proxy_user | default('ansible'),
-                'passphrase': '',
-                'private_key': ssh_priv_key_raw.content | b64decode
-              } | to_json
-            }}
+          login: "{{ proxy_user | default('ansible') }}"
+          passphrase: ""
+          private_key: "{{ ssh_priv_key_raw.content | b64decode }}"
         return_content: true
         status_code: [200, 201]
       register: key_result
-      no_log: false
+      no_log: true
 
     - name: Diagnóstico - confirmar ID de Key Store
       ansible.builtin.debug:
