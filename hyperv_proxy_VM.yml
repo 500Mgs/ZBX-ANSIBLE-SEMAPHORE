@@ -144,7 +144,7 @@
     - name: Descargar VHDX base al Hyper-V
       ansible.windows.win_powershell:
         script: |
-          $url  = "http://{{ hostvars['localhost']['controller_ip'] }}:{{ http_port }}/debian-cloud-base.vhdx"
+          $url = "http://{{ hostvars['localhost']['controller_ip'] }}:{{ hostvars['localhost']['http_port'] }}/debian-cloud-base.vhdx"
           $dest = "{{ hypervvhdxpath }}"
           $wc   = New-Object System.Net.WebClient
           $wc.DownloadFile($url, $dest)
@@ -153,7 +153,7 @@
     - name: Descargar ISO cidata al Hyper-V
       ansible.windows.win_powershell:
         script: |
-          $url  = "http://{{ hostvars['localhost']['controller_ip'] }}:{{ http_port }}/cidata.iso"
+          $url = "http://{{ hostvars['localhost']['controller_ip'] }}:{{ hostvars['localhost']['http_port'] }}/cidata.iso"
           $dest = "{{ hypervvmpath }}\{{ hypervvmname }}.iso"
           $wc   = New-Object System.Net.WebClient
           $wc.DownloadFile($url, $dest)
