@@ -360,12 +360,16 @@
         method: POST
         headers: "{{ semaphore_auth_headers }}"
         body_format: json
-        body:
-          name: "Inventory_{{ cliente_id }}"
-          project_id: "{{ semaphore_project_id | int }}"
-          type: "static"
-          inventory: "{{ inventory_text }}"
-          ssh_key_id: "{{ key_result.json.id | int }}"
+        body: >-
+          {{
+            {
+              'name': 'Inventory_' ~ cliente_id,
+              'project_id': semaphore_project_id | int,
+              'type': 'static',
+              'inventory': inventory_text,
+              'ssh_key_id': key_result.json.id | int
+            } | to_json
+          }}
         return_content: true
         status_code: [200, 201]
       register: inv_result
