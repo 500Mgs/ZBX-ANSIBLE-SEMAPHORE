@@ -338,7 +338,22 @@
           - "Key ID recibido: {{ key_result.json.id }}"
           - "Tipo del ID: {{ key_result.json.id | type_debug }}"
       no_log: false
+    
+    - name: Diagnóstico - mostrar inventario que se enviará
+      ansible.builtin.debug:
+        msg: "{{ inventory_text }}"
+      no_log: false
 
+    - name: Diagnóstico - campos del Inventory API
+      ansible.builtin.debug:
+        msg:
+          name: "Inventory_{{ cliente_id }}"
+          project_id: "{{ semaphore_project_id | int }}"
+          type: "static"
+          ssh_key_id: "{{ key_result.json.id | int }}"
+          inventory_length: "{{ inventory_text | length }}"
+      no_log: false
+    
     - name: Crear Inventory estático del cliente
       ansible.builtin.uri:
         url: "{{ semaphore_project_api }}/inventory"
