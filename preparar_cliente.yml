@@ -395,29 +395,17 @@
           project_id: "{{ semaphore_project_id | int }}"
           repository_id: "{{ semaphore_repository_id | int }}"
           inventory_id: "{{ inv_result.json.id | int }}"
+
+          # En Semaphore 2.18 se envían ambos campos.
           environment_id: "{{ env_result.json.id | int }}"
+          environment_ids:
+            - "{{ env_result.json.id | int }}"
 
           name: "{{ item.name }} - {{ cliente_id }}"
-          playbook: "{{ item.playbook }}"
-
-          # Imprescindible: define el ejecutor del template.
-          app: "ansible"
-
-          # Semaphore espera una cadena JSON para argumentos.
+          playbook: "/home/usuario/zbx/{{ item.playbook }}"
           arguments: "[]"
-
-          # Valores explícitos y seguros para un template Ansible estándar.
-          description: "Provisionamiento {{ item.name }} para {{ cliente_id }}"
-          allow_override_args_in_task: false
-          suppress_success_alerts: false
-          limit: ""
-          git_branch: ""
-          type: ""
-          start_version: ""
-          build_template_id: 0
-          autorun: false
+          app: "ansible"
           survey_vars: []
-          vaults: []
         return_content: true
         status_code: [200, 201]
       loop:
