@@ -137,7 +137,7 @@
       {{ semaphore_api_url }}/project/{{ semaphore_project_id }}
 
     semaphore_api_token_effective: >
-      {{ lookup('ansible.builtin.env', 'semaphore_api_token') }}
+      {{ lookup('ansible.builtin.env', 'semaphore_api_token') | trim }}
 
     semaphore_auth_headers:
       Authorization: "Bearer {{ semaphore_api_token_effective }}"
@@ -278,7 +278,7 @@
         return_content: true
         status_code: 200
       register: semaphore_environments
-      no_log: false
+      no_log: true
 
     - name: Detener si ya existe el Environment del cliente
       ansible.builtin.assert:
