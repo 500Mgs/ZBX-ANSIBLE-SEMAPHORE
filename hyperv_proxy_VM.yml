@@ -129,6 +129,31 @@
       ansible.builtin.debug:
         var: vsw.stdout_lines
 
+    - name: Comprobar si existe el conmutador externo vSwitch-Externo
+      ansible.windows.win_shell: |
+        $sw = Get-VMSwitch -Name "vSwitch-Externo" -ErrorAction SilentlyContinue
+        if ($sw) { "exists" } else { "missing" }
+      register: switchcheck
+      changed_when: false
+
+    - name: Crear conmutador externo vSwitch-Externo si no existe
+      ansible.windows.win_shell: |
+        $switchName = "vSwitch-Externo"
+        $existing = Get-VMSwitch -Name $switchName -ErrorAction SilentlyContinue
+        if (-not $existing) {
+          $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" -and $_.PhysicalMediaType -ne $null }
+          if (-not $adapters) {
+            throw "No se encontró ninguna NIC física disponible para crear el conmutador externo."
+          }
+          $adapter = $adapters | Sort-Object Name | Select-Object -First 1
+          New-VMSwitch -Name $switchName -NetAdapterName $adapter.Name -AllowManagementOS $false
+          "created"
+        } else {
+          "exists"
+        }
+      when: "'missing' in switchcheck.stdout"
+      register: switchcreate
+
     - name: Crear rutas de almacenamiento en Hyper-V
       ansible.windows.win_file:
         path: "{{ item }}"
@@ -169,7 +194,8 @@
 
     - name: Crear VM Generation 1
       ansible.windows.win_shell: |
-        New-VM -Name "{{ hypervvmname }}" -Path "{{ hypervvmpath }}" -Generation 1 -MemoryStartupBytes {{ hypervvmrammb }}MB -SwitchName "{{ hypervvswitch }}"
+        $switchName = "vSwitch-Externo"
+        New-VM -Name "{{ hypervvmname }}" -Path "{{ hypervvmpath }}" -Generation 1 -MemoryStartupBytes {{ hypervvmrammb }}MB -SwitchName $switchName
         Set-VMProcessor "{{ hypervvmname }}" -Count {{ hypervvmcpu }}
         Set-VMMemory "{{ hypervvmname }}" -DynamicMemoryEnabled $false
       when: "'notfound' in vmcheck.stdout"
