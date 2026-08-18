@@ -346,7 +346,7 @@
         return_content: true
         status_code: [200, 201]
       register: inv_result
-      no_log: true
+      no_log: false
 
     - name: Crear Task Templates del cliente
       ansible.builtin.uri:
