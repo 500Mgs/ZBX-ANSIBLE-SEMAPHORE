@@ -278,7 +278,7 @@
         return_content: true
         status_code: 200
       register: semaphore_environments
-      no_log: true
+      no_log: false
 
     - name: Detener si ya existe el Environment del cliente
       ansible.builtin.assert:
