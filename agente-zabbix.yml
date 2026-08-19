@@ -4,6 +4,7 @@
   become: true
 
   vars:
+    zabbix_version: "7"
     zabbix_release_deb: "https://cdn.zabbix.com/zabbix/binaries/stable/{{ zabbix_version }}/latest/zabbix_agent2-{{ zabbix_version }}-latest-windows-amd64-openssl.msi"
 
   tasks:
